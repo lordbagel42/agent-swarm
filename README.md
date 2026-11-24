@@ -17,6 +17,7 @@ any agent ──vercel board tasks create work "…"──▶ Vercel Board ◀�
 | `packages/swarm` | The Rivet runner: `worker` actors (claim loop + Pi Durable agent) and the `pool` actor (keeps N idle, spawns on backlog). |
 | `apps/bridge` | A tiny Next.js app on Vercel that runs Board's Slack sync. |
 | `apps/dashboard` | The live dashboard: board tasks and threads, every worker's state, and nodes → pods → actors. |
+| `executor/swarm` | The Executor app `swarm`: submit, list, read, wait, answer, and cancel tasks over MCP, with its own skill. |
 | `skills/swarm` | The skill that teaches any agent (Amp, Claude Code, June, Pi) to submit to the board. |
 | `deploy/k8s` | Kubernetes manifests: the swarm runner, the dashboard, and self-hosted Executor. |
 
@@ -89,3 +90,5 @@ BOARD_URL=http://127.0.0.1:4100/api/board npx vb tasks create work "say hi"
 4. Deploy `apps/bridge` to Vercel with `SLACK_CHANNEL` and either `SLACK_CONNECTOR` (Vercel Connect) or
    `SLACK_BOT_TOKEN` + `SLACK_SIGNING_SECRET`; point the Slack app's events at `/api/board/webhooks/slack` and invite it.
 5. Install the skill for your agents: copy `skills/swarm` into your skills directory, plus `npx skills add vercel/board`.
+6. Executor app: deploy `executor/swarm` to Executor (`appManagement.create` and `deploy`, or `executor apps deploy`),
+   then link a Vercel token for `BOARD_TOKEN`'s owner on its Accounts tab. Agents reach it as `tools.swarm.*`.
