@@ -1,0 +1,258 @@
+# The swarm dashboard (apps/dashboard): the board, every worker, and where they run, live, at
+# https://swarm.mrow.tech behind Cloudflare Access. It only reads: the board as BOARD_TOKEN, Rivet with
+# the swarm's token, and Kubernetes through a read-only service account.
+#
+# Auth is two layers, and the second fails closed: Cloudflare Access (GitHub, owner only) in front of the
+# tunnel, and the app itself, which refuses any request without a valid Access token for CF_ACCESS_AUD.
+# Until CF_ACCESS_AUD is set the app serves nothing but /healthz.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swarm-dashboard
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: swarm-dashboard
+  namespace: swarm-dashboard
+---
+# Nodes and their metrics are cluster-scoped; that's all this grants cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: swarm-dashboard-nodes
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: swarm-dashboard-nodes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swarm-dashboard-nodes
+subjects:
+  - kind: ServiceAccount
+    name: swarm-dashboard
+    namespace: swarm-dashboard
+---
+# Pods and pod metrics, only in the namespaces the dashboard shows (KUBE_NAMESPACES): bound per namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: swarm-dashboard-pods
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: swarm-dashboard-pods
+  namespace: agent-swarm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swarm-dashboard-pods
+subjects:
+  - kind: ServiceAccount
+    name: swarm-dashboard
+    namespace: swarm-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: swarm-dashboard-pods
+  namespace: rivet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: swarm-dashboard-pods
+subjects:
+  - kind: ServiceAccount
+    name: swarm-dashboard
+    namespace: swarm-dashboard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: swarm-dashboard
+data:
+  SWARM_CHANNEL: work
+  KUBE_NAMESPACES: agent-swarm,rivet
+  CF_ACCESS_TEAM_DOMAIN: https://bagel.cloudflareaccess.com
+  # The Access application's AUD tag, once the app for swarm.mrow.tech exists.
+  CF_ACCESS_AUD: ""
+---
+# Fill and encrypt (SOPS) like swarm-secrets:
+#   BOARD_TOKEN, VERCEL_ORG_ID  - the same values swarm-secrets holds
+#   RIVET_ENDPOINT              - http://agent-swarm:<rivet-token>@rivet.rivet.svc.cluster.local:6420
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dashboard-secrets
+  namespace: swarm-dashboard
+type: Opaque
+stringData:
+  BOARD_TOKEN: ""
+  VERCEL_ORG_ID: team_sQqIIVtfELXBYG1ZY4aHqpDb
+  RIVET_ENDPOINT: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swarm-dashboard
+  namespace: swarm-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swarm-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: swarm-dashboard
+    spec:
+      serviceAccountName: swarm-dashboard
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dashboard
+          image: ghcr.io/lordbagel42/agent-swarm-dashboard:latest
+          ports:
+            - { name: http, containerPort: 3000 }
+          env:
+            - { name: HOME, value: /tmp }
+            # The API server's CA, for the service account's requests.
+            - { name: NODE_EXTRA_CA_CERTS, value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt }
+          envFrom:
+            - configMapRef: { name: dashboard-config }
+            - secretRef: { name: dashboard-secrets }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 160Mi }
+            limits: { cpu: 500m, memory: 384Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: cache, mountPath: /app/apps/dashboard/.next/cache }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+        - name: cache
+          emptyDir: { sizeLimit: 64Mi }
+---
+# Routing-only Service, the shape the shared Gateway needs: ClusterIP, port 80 named http, numeric
+# targetPort. Its annotations have external-dns publish swarm.mrow.tech to the tunnel.
+apiVersion: v1
+kind: Service
+metadata:
+  name: swarm-dashboard
+  namespace: swarm-dashboard
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: swarm.mrow.tech
+    external-dns.alpha.kubernetes.io/target: 90de6207-34ea-4b6a-8517-4ef65148d1a2.cfargotunnel.com
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: swarm-dashboard
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: swarm-dashboard
+  namespace: swarm-dashboard
+spec:
+  parentRefs:
+    - name: knative-gateway
+      namespace: gateway-api
+  hostnames:
+    - swarm.mrow.tech
+  rules:
+    - backendRefs:
+        - name: swarm-dashboard
+          port: 80
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: swarm-dashboard
+  namespace: swarm-dashboard
+spec:
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+  # The Gateway's upstream connects need more than fromEntities: [ingress] here (see apps/rivet/policy.yaml);
+  # the app itself refuses anything without a Cloudflare Access token.
+  ingress:
+    - fromEntities: [all]
+      toPorts:
+        - ports:
+            - { port: "3000", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+    # Nodes, pods, and metrics.
+    - toEntities: [kube-apiserver]
+    # Rivet's API and actor gateway, in-cluster.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: rivet
+            app.kubernetes.io/name: rivet
+      toPorts:
+        - ports:
+            - { port: "6420", protocol: TCP }
+    # HTTPS to the internet: Vercel Board, and Cloudflare Access's signing keys.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 0.0.0.0/8
+            - 10.0.0.0/8
+            - 100.64.0.0/10
+            - 127.0.0.0/8
+            - 169.254.0.0/16
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 224.0.0.0/4
+            - 240.0.0.0/4
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
