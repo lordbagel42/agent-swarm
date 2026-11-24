@@ -92,7 +92,7 @@ export function OverviewView({
 			<div className="grid items-start gap-6 lg:grid-cols-[1fr_380px]">
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between">
-						<CardTitle className="text-sm">Workers by pod</CardTitle>
+						<CardTitle className="text-sm">Workers by host</CardTitle>
 						<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
 							{(Object.keys(PHASE_LABELS) as WorkerPhase[]).map((phase) => (
 								<span key={phase} className="inline-flex items-center gap-1.5">
@@ -110,7 +110,7 @@ export function OverviewView({
 						{byPod(workers).map(([pod, group]) => (
 							<div key={pod || "unknown"}>
 								<div className="mb-2 flex items-baseline gap-2 text-xs">
-									<span className="font-mono text-foreground/90">{pod || "pod not reported"}</span>
+									<span className="font-mono text-foreground/90">{pod || "host not reported"}</span>
 									<span className="text-muted-foreground">
 										{group[0]?.node ?? (pod ? "" : "not read yet, older build, or unreachable")}
 									</span>
@@ -118,7 +118,7 @@ export function OverviewView({
 										{group.filter((worker) => worker.taskId).length} busy / {group.length}
 									</span>
 								</div>
-								<WorkerGrid workers={group} now={now} onTask={onTask} />
+								<WorkerGrid workers={group} now={now} />
 							</div>
 						))}
 						{workers.length === 0 && <p className="text-sm text-muted-foreground">No worker actors found in Rivet.</p>}

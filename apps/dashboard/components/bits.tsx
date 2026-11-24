@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { TaskState, WorkerPhase } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -71,5 +72,18 @@ export function Meter({
 				<div className="absolute top-0 h-full w-px bg-sky-400" style={{ left: `${request}%` }} />
 			)}
 		</div>
+	);
+}
+
+/** A worker's name, linking to its page. Stops the click so a row's own click doesn't fire too. */
+export function WorkerLink({ name, href = name, className }: { name: string; href?: string; className?: string }) {
+	return (
+		<Link
+			href={`/workers/${encodeURIComponent(href)}`}
+			onClick={(event) => event.stopPropagation()}
+			className={cn("hover:underline", className)}
+		>
+			{name}
+		</Link>
 	);
 }

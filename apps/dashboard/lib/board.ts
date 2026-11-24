@@ -84,6 +84,7 @@ export async function readThread(id: string): Promise<ThreadDetail | null> {
 			id: message.id,
 			author: message.author?.name ?? message.author?.handle ?? message.by.actor,
 			kind: message.author?.kind ?? "person",
+			worker: message.author?.kind === "agent" ? (message.by.profile ?? null) : null,
 			text: message.text ?? "",
 			createdAt: message.createdAt,
 		})),

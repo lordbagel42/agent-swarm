@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dot, PHASE_COLORS, PHASE_LABELS, PhaseBadge } from "@/components/bits";
+import { Dot, PHASE_COLORS, PHASE_LABELS, PhaseBadge, WorkerLink } from "@/components/bits";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,7 +32,7 @@ export function WorkersView({
 		(worker) =>
 			(phase === "all" || worker.phase === phase) &&
 			(!needle ||
-				worker.name.includes(needle) ||
+				worker.name.toLowerCase().includes(needle) ||
 				worker.pod?.includes(needle) ||
 				worker.node?.includes(needle) ||
 				worker.taskId?.toLowerCase().includes(needle)),
@@ -64,7 +64,7 @@ export function WorkersView({
 					))}
 				</ToggleGroup>
 				<Input
-					placeholder="Search workers, pods, nodes, tasks…"
+					placeholder="Search workers, hosts, nodes, tasks…"
 					value={query}
 					onChange={(event) => setQuery(event.target.value)}
 					className="ml-auto h-8 w-72"
@@ -77,7 +77,7 @@ export function WorkersView({
 							<TableHead className="w-32">Worker</TableHead>
 							<TableHead className="w-36">State</TableHead>
 							<TableHead>Task</TableHead>
-							<TableHead className="w-56">Pod · node</TableHead>
+							<TableHead className="w-56">Host · node</TableHead>
 							<TableHead className="w-20 text-right">For</TableHead>
 							<TableHead className="w-28 text-right">Done / fail / blk</TableHead>
 							<TableHead className="w-20 text-right">Tokens</TableHead>
@@ -92,7 +92,7 @@ export function WorkersView({
 								onClick={() => worker.taskId && onTask(worker.taskId)}
 							>
 								<TableCell className="font-mono text-xs">
-									{worker.name}
+									<WorkerLink name={worker.name} />
 									{!worker.permanent && <span className="ml-1.5 text-sky-400">extra</span>}
 								</TableCell>
 								<TableCell>
@@ -109,7 +109,7 @@ export function WorkersView({
 									{worker.asked && <div className="truncate text-xs text-amber-400">Asked: {worker.asked}</div>}
 								</TableCell>
 								<TableCell className="max-w-0 truncate font-mono text-xs text-muted-foreground">
-									{worker.pod ? `${worker.pod.replace(/^swarm-/, "")} · ${worker.node ?? "?"}` : "—"}
+									{worker.pod ? `${worker.pod.replace(/^swarm-/, "")}${worker.node ? ` · ${worker.node}` : ""}` : "—"}
 								</TableCell>
 								<TableCell className="text-right text-xs text-muted-foreground tabular-nums">
 									{ago(worker.taskId ? worker.claimedAt : worker.idleSince, now)}

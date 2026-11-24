@@ -42,17 +42,22 @@ returns the task to the queue if the worker never comes back.
 ## Dashboard
 
 `apps/dashboard` (Next.js) shows the swarm live: the board's tasks by state with their threads, each worker's
-state (claiming, working on which task, asking, backing off) and the pod and node it runs on, the pool's size and
-extras, and the cluster as nodes → pods → actors with CPU and memory. Its server reads the board as `BOARD_TOKEN`,
-Rivet through `RIVET_ENDPOINT` (the pool's and every worker's read-only `status` action, plus the engine's node and
-actor lists), and Kubernetes through a read-only service account; it polls only while someone has the page open.
+state (claiming, working on which task, asking, backing off) and the host it runs on, the pool's size and extras, and
+Rivet's nodes with the actors on each. `/workers/<name>` shows one worker: its state, the tasks it settled, and the
+current or last task's conversation (brief, messages, thinking, tool calls and results, tokens) from its read-only
+`activity` action, read only while someone has that page open. Its server reads the board as `BOARD_TOKEN`, Rivet
+through `RIVET_ENDPOINT` (such as Rivet Cloud's `https://<namespace>:<sk_token>@<cluster>-api.onrivet.dev`, with
+`RIVET_POOL` naming the runner pool, default `default`), and refreshes each source only when a request finds it stale.
+Kubernetes is optional: with an in-cluster service account or `KUBE_API_URL` it adds nodes → pods → actors with CPU
+and memory.
 
-It runs in the cluster at `swarm.mrow.tech` (`deploy/k8s/dashboard.yaml`) behind Cloudflare Access, and checks the
-Access token itself, failing closed when `CF_ACCESS_AUD` isn't set. Locally:
+Auth fails closed. `DASHBOARD_AUTH=vercel` relies on Vercel Deployment Protection (only honored on Vercel, and the
+protection must cover production too); otherwise it checks a Cloudflare Access token itself (`CF_ACCESS_TEAM_DOMAIN`,
+`CF_ACCESS_AUD`). Locally:
 
 ```bash
-DASHBOARD_AUTH=none BOARD_TOKEN=… VERCEL_ORG_ID=… RIVET_ENDPOINT=https://agent-swarm:<token>@rivet.mrow.tech \
-  pnpm --filter @swarm/dashboard dev    # KUBE_API_URL=http://127.0.0.1:8001 with `kubectl proxy` for the cluster view
+DASHBOARD_AUTH=none BOARD_TOKEN=… VERCEL_ORG_ID=… RIVET_ENDPOINT=https://<namespace>:<token>@<host> \
+  pnpm --filter @swarm/dashboard dev    # or BOARD_URL=… for a local `vb serve` board
 ```
 
 ## Configuration

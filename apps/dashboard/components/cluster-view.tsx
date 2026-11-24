@@ -34,17 +34,7 @@ function UsageLine({
 	);
 }
 
-function PodCard({
-	pod,
-	workers,
-	now,
-	onTask,
-}: {
-	pod: PodRow;
-	workers: WorkerRow[];
-	now: number;
-	onTask: (id: string) => void;
-}) {
+function PodCard({ pod, workers, now }: { pod: PodRow; workers: WorkerRow[]; now: number }) {
 	const limit = (key: keyof Usage) => pod.limits[key];
 	return (
 		<div className="rounded-lg border border-border bg-background/40 p-3">
@@ -79,22 +69,14 @@ function PodCard({
 			</div>
 			{workers.length > 0 && (
 				<div className="mt-3">
-					<WorkerGrid workers={workers} now={now} onTask={onTask} size="sm" />
+					<WorkerGrid workers={workers} now={now} size="sm" />
 				</div>
 			)}
 		</div>
 	);
 }
 
-export function ClusterView({
-	snapshot,
-	now,
-	onTask,
-}: {
-	snapshot: Snapshot;
-	now: number;
-	onTask: (id: string) => void;
-}) {
+export function ClusterView({ snapshot, now }: { snapshot: Snapshot; now: number }) {
 	const { cluster, workers, rivetNodes, sources, pool } = snapshot;
 	const workersByPod = new Map(byPod(workers));
 	const known = new Set(cluster.nodes.flatMap((node) => node.pods.map((pod) => pod.name)));
@@ -102,9 +84,9 @@ export function ClusterView({
 
 	return (
 		<div className="space-y-6">
-			{!sources.kube.ok && (
+			{snapshot.kubernetes && !sources.kube.ok && (
 				<div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200">
-					Kubernetes: {sources.kube.error ?? "not read yet"}. Workers below are grouped by the pod they report instead.
+					Kubernetes: {sources.kube.error ?? "not read yet"}. Workers below are grouped by the host they report instead.
 				</div>
 			)}
 
@@ -136,13 +118,7 @@ export function ClusterView({
 									/>
 								</div>
 								{node.pods.map((pod) => (
-									<PodCard
-										key={pod.name}
-										pod={pod}
-										workers={workersByPod.get(pod.name) ?? []}
-										now={now}
-										onTask={onTask}
-									/>
+									<PodCard key={pod.name} pod={pod} workers={workersByPod.get(pod.name) ?? []} now={now} />
 								))}
 								{podCount === 0 && (
 									<p className="text-xs text-muted-foreground">No swarm or Rivet pods on this node.</p>
@@ -157,7 +133,7 @@ export function ClusterView({
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-sm">
-							{sources.kube.ok ? "Actors on pods Kubernetes doesn't list" : "Actors by pod"}
+							{sources.kube.ok ? "Actors on pods Kubernetes doesn't list" : "Actors by host"}
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -165,11 +141,11 @@ export function ClusterView({
 							<div key={pod || "unknown"}>
 								<div className="mb-2 flex text-xs">
 									<span className="font-mono">
-										{pod || "pod not reported (not read yet, older build, or unreachable)"}
+										{pod || "host not reported (not read yet, older build, or unreachable)"}
 									</span>
 									<span className="ml-auto text-muted-foreground tabular-nums">{group.length} actors</span>
 								</div>
-								<WorkerGrid workers={group} now={now} onTask={onTask} size="sm" />
+								<WorkerGrid workers={group} now={now} size="sm" />
 							</div>
 						))}
 					</CardContent>
@@ -178,7 +154,7 @@ export function ClusterView({
 
 			<Card className="pb-0">
 				<CardHeader className="flex flex-row items-center">
-					<CardTitle className="text-sm">Rivet nodes · namespace agent-swarm, pool default</CardTitle>
+					<CardTitle className="text-sm">Rivet nodes</CardTitle>
 					<span className="ml-auto text-xs text-muted-foreground">pool actor on {pool?.pod ?? "?"}</span>
 				</CardHeader>
 				<Table>

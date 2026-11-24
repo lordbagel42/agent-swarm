@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dot, TASK_COLORS, TaskStateBadge } from "@/components/bits";
+import { Dot, TASK_COLORS, TaskStateBadge, WorkerLink } from "@/components/bits";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,8 +25,8 @@ export function BoardView({
 			(!needle ||
 				task.text.toLowerCase().includes(needle) ||
 				task.id.toLowerCase().includes(needle) ||
-				task.claim?.worker.includes(needle) ||
-				task.lastWorker?.includes(needle)),
+				task.claim?.worker.toLowerCase().includes(needle) ||
+				task.lastWorker?.toLowerCase().includes(needle)),
 	);
 
 	return (
@@ -96,10 +96,10 @@ export function BoardView({
 								</TableCell>
 								<TableCell className="font-mono text-xs">
 									{task.claim ? (
-										<span className="text-blue-400">{task.claim.worker}</span>
-									) : (
-										<span className="text-muted-foreground">{task.lastWorker ?? ""}</span>
-									)}
+										<WorkerLink name={task.claim.worker} className="text-blue-400" />
+									) : task.lastWorker ? (
+										<WorkerLink name={task.lastWorker} className="text-muted-foreground" />
+									) : null}
 								</TableCell>
 								<TableCell className="truncate text-xs text-muted-foreground">{task.author}</TableCell>
 								<TableCell className="text-right tabular-nums">{task.replies}</TableCell>

@@ -1,7 +1,10 @@
 import { createClient } from "rivetkit/client";
-import type { Outcome, PoolStatus, RivetNode, WorkerPhase, WorkerRow } from "./types";
+import type { Outcome, PoolStatus, RivetNode, WorkerActivity, WorkerPhase, WorkerRow } from "./types";
 
-/** RIVET_ENDPOINT is `http://<namespace>:<token>@host:port`, the same form the swarm's pods use. */
+/**
+ * RIVET_ENDPOINT is `http(s)://<namespace>:<token>@host`, the same form the swarm uses: a self-hosted engine, or
+ * Rivet Cloud's `https://<namespace>:<sk_token>@<cluster>-api.onrivet.dev`.
+ */
 function endpoint() {
 	const raw = process.env.RIVET_ENDPOINT;
 	if (!raw) throw new Error("RIVET_ENDPOINT is not set");
@@ -21,11 +24,24 @@ function rivet() {
 	return client;
 }
 
+type Handle = { action: (opts: { name: string; args: unknown[]; signal?: AbortSignal }) => Promise<unknown> };
+
 /** Calls an actor's read-only `status` action, giving up after 5 s. */
-function callStatus(handle: {
-	action: (opts: { name: string; args: unknown[]; signal?: AbortSignal }) => Promise<unknown>;
-}) {
+function callStatus(handle: Handle) {
 	return handle.action({ name: "status", args: [], signal: AbortSignal.timeout(5_000) });
+}
+
+/**
+ * A worker's read-only `activity` action: its outcome history and one task's conversation, capped by the worker.
+ * Called only for the worker someone has open; a worker built before the action rejects it.
+ */
+export async function workerActivity(name: string, taskId?: string): Promise<WorkerActivity> {
+	const handle = rivet().get("worker", [name]) as Handle;
+	return (await handle.action({
+		name: "activity",
+		args: taskId ? [taskId] : [],
+		signal: AbortSignal.timeout(10_000),
+	})) as WorkerActivity;
 }
 
 async function api<T>(path: string, query: Record<string, string> = {}): Promise<T> {
@@ -39,6 +55,9 @@ async function api<T>(path: string, query: Record<string, string> = {}): Promise
 	if (!response.ok) throw new Error(`Rivet ${path}: ${response.status} ${(await response.text()).slice(0, 200)}`);
 	return (await response.json()) as T;
 }
+
+/** The runner pool the swarm's nodes join. */
+const POOL = process.env.RIVET_POOL ?? "default";
 
 type ActorView = { actor_id: string; key: string; name: string; destroy_ts: number | null };
 
@@ -66,7 +85,7 @@ export async function listNodes(): Promise<RivetNode[]> {
 		create_ts: number;
 		last_ping_ts: number | null;
 	};
-	const result = await api<{ nodes: NodeView[] }>("/pools/default/nodes");
+	const result = await api<{ nodes: NodeView[] }>(`/pools/${encodeURIComponent(POOL)}/nodes`);
 	return result.nodes
 		.map((node) => ({
 			key: node.key,

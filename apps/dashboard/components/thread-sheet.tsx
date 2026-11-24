@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TaskStateBadge } from "@/components/bits";
+import { TaskStateBadge, WorkerLink } from "@/components/bits";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ago } from "@/lib/format";
@@ -62,18 +62,21 @@ export function ThreadSheet({
 						{task?.text.split("\n")[0] ?? "Loading…"}
 					</SheetTitle>
 					<SheetDescription className="text-xs">
-						{task
-							? [
-									`from ${task.author}`,
-									`created ${ago(task.createdAt, now)} ago`,
-									task.claim
-										? `held by ${task.claim.worker} until ${new Date(task.claim.until).toLocaleTimeString()}`
-										: null,
-									worker?.pod ? `on ${worker.pod}${worker.node ? ` · ${worker.node}` : ""}` : null,
-								]
-									.filter(Boolean)
-									.join(" · ")
-							: error}
+						{task ? (
+							<>
+								from {task.author} · created {ago(task.createdAt, now)} ago
+								{task.claim && (
+									<>
+										{" · held by "}
+										<WorkerLink name={task.claim.worker} className="text-foreground" /> until{" "}
+										{new Date(task.claim.until).toLocaleTimeString()}
+									</>
+								)}
+								{worker?.pod && ` · on ${worker.pod}${worker.node ? ` · ${worker.node}` : ""}`}
+							</>
+						) : (
+							error
+						)}
 					</SheetDescription>
 				</SheetHeader>
 				<ScrollArea className="min-h-0 flex-1">
@@ -101,7 +104,11 @@ export function ThreadSheet({
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="flex items-baseline gap-2 text-xs">
-										<span className="font-medium">{message.author}</span>
+										{message.worker ? (
+											<WorkerLink name={message.author} href={message.worker} className="font-medium" />
+										) : (
+											<span className="font-medium">{message.author}</span>
+										)}
 										<span className="text-muted-foreground">{ago(message.createdAt, now)} ago</span>
 										{index === 0 && <span className="text-muted-foreground">· brief</span>}
 									</div>

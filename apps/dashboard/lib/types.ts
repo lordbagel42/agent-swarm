@@ -35,6 +35,7 @@ export type Outcome = {
 	outcome: "completed" | "blocked" | "failed" | "lost";
 	at: number;
 	tokens: number;
+	conversationId?: number;
 };
 
 export type WorkerRow = {
@@ -107,6 +108,8 @@ export type NodeRow = {
 
 export type Snapshot = {
 	at: number;
+	/** Whether a Kubernetes API is configured: in-cluster, or KUBE_API_URL. Without it there's no cluster view. */
+	kubernetes: boolean;
 	sources: { board: Source; rivet: Source; workers: Source; kube: Source };
 	tasks: TaskRow[];
 	/** Exact counts for open states; finished states count only the recent tasks listed. */
@@ -121,6 +124,8 @@ export type ThreadMessage = {
 	id: string;
 	author: string;
 	kind: string;
+	/** The worker's board profile, which is its name, when an agent wrote it. */
+	worker: string | null;
 	text: string;
 	createdAt: string;
 };
@@ -128,4 +133,50 @@ export type ThreadMessage = {
 export type ThreadDetail = {
 	task: TaskRow;
 	messages: ThreadMessage[];
+};
+
+/** What a worker's `activity` action returns (packages/swarm/src/activity.ts), already capped by the worker. */
+export type Tokens = { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
+
+export type ActivityEntry =
+	| { id: string; kind: "user"; text: string }
+	| {
+			id: string;
+			kind: "assistant";
+			text: string;
+			thinking: string;
+			toolCalls: { id: string; name: string; args: string }[];
+			stopReason: string;
+			error: string | null;
+			tokens: Tokens;
+	  }
+	| {
+			id: string;
+			kind: "tool";
+			name: string;
+			toolCallId: string;
+			text: string;
+			isError: boolean;
+			durationMs: number | null;
+	  }
+	| { id: string; kind: "other"; entryKind: string };
+
+export type WorkerActivity = {
+	name: string;
+	taskId: string | null;
+	/** The conversation is the task the worker holds now. */
+	live: boolean;
+	conversation: { conversationId: number; entries: ActivityEntry[]; more: boolean; tokens: Tokens } | null;
+	/** Newest first. */
+	history: Outcome[];
+};
+
+/** What /api/workers/[name] returns. */
+export type WorkerDetail = {
+	worker: WorkerRow | null;
+	activity: WorkerActivity | null;
+	/** Why the activity couldn't be read, such as a worker built before the action. */
+	activityError: string | null;
+	/** Board tasks this worker holds or settled, newest first, from the board's recent tasks. */
+	tasks: TaskRow[];
 };

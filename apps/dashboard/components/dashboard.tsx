@@ -44,7 +44,7 @@ function useSnapshot() {
 }
 
 /** Ticks once a second so "3s ago" stays true between polls. */
-function useNow() {
+export function useNow() {
 	const [now, setNow] = useState(() => Date.now());
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 1_000);
@@ -103,9 +103,11 @@ export function Dashboard() {
 					</span>
 					<div className="ml-auto hidden items-center gap-2 md:flex">
 						{snapshot &&
-							(Object.keys(SOURCE_NAMES) as (keyof Snapshot["sources"])[]).map((key) => (
-								<SourcePill key={key} name={SOURCE_NAMES[key]} source={snapshot.sources[key]} now={now} />
-							))}
+							(Object.keys(SOURCE_NAMES) as (keyof Snapshot["sources"])[])
+								.filter((key) => key !== "kube" || snapshot.kubernetes)
+								.map((key) => (
+									<SourcePill key={key} name={SOURCE_NAMES[key]} source={snapshot.sources[key]} now={now} />
+								))}
 					</div>
 				</div>
 				<div className="mx-auto max-w-[1400px] px-6">
@@ -125,9 +127,12 @@ export function Dashboard() {
 								)}
 							</TabsTrigger>
 							<TabsTrigger value="cluster">
-								Cluster
+								{/* Without Kubernetes, the tab shows Rivet's nodes and the actors on each. */}
+								{snapshot && !snapshot.kubernetes ? "Nodes" : "Cluster"}
 								{snapshot && (
-									<span className="text-xs text-muted-foreground tabular-nums">{snapshot.cluster.nodes.length}</span>
+									<span className="text-xs text-muted-foreground tabular-nums">
+										{snapshot.kubernetes ? snapshot.cluster.nodes.length : snapshot.rivetNodes.length}
+									</span>
 								)}
 							</TabsTrigger>
 						</TabsList>
@@ -139,9 +144,7 @@ export function Dashboard() {
 				{error && !snapshot && (
 					<div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>
 				)}
-				{!snapshot && !error && (
-					<div className="text-sm text-muted-foreground">Reading the board, Rivet, and the cluster…</div>
-				)}
+				{!snapshot && !error && <div className="text-sm text-muted-foreground">Reading the board and Rivet…</div>}
 				{snapshot && (
 					<Tabs value={tab} onValueChange={setTab}>
 						<TabsContent value="overview">
@@ -154,7 +157,7 @@ export function Dashboard() {
 							<WorkersView snapshot={snapshot} now={now} onTask={setTaskId} />
 						</TabsContent>
 						<TabsContent value="cluster">
-							<ClusterView snapshot={snapshot} now={now} onTask={setTaskId} />
+							<ClusterView snapshot={snapshot} now={now} />
 						</TabsContent>
 					</Tabs>
 				)}
