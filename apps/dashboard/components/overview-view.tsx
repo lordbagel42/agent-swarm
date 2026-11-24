@@ -13,7 +13,7 @@ function Stat({ label, value, hint, dot }: { label: string; value: string | numb
 					{label}
 				</div>
 				<div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
-				{hint && <div className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</div>}
+				{hint && <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{hint}</div>}
 			</CardContent>
 		</Card>
 	);

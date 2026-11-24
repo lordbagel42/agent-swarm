@@ -68,7 +68,9 @@ function PodCard({
 			<div className="mt-2 flex gap-3 text-xs text-muted-foreground">
 				<span>{pod.phase}</span>
 				<span>up {ago(pod.startedAt, now)}</span>
-				<span className={pod.restarts ? "text-amber-400" : undefined}>{pod.restarts} restarts</span>
+				<span className={pod.restarts ? "text-amber-400" : undefined}>
+					{pod.restarts} restart{pod.restarts === 1 ? "" : "s"}
+				</span>
 				{workers.length > 0 && (
 					<span className="ml-auto tabular-nums">
 						{workers.filter((worker) => worker.taskId).length} busy / {workers.length} actors
