@@ -124,12 +124,12 @@ function phaseOf(status: WorkerStatus, now: number): WorkerPhase {
 }
 
 /** A worker nobody has read yet: idle until its first status arrives, or the board says it holds a task. */
-export function unreadWorker(key: string, actorId: string, permanent: number): WorkerRow {
+export function unreadWorker(key: string, actorId: string): WorkerRow {
 	return {
 		name: key,
 		actorId,
 		phase: "claiming",
-		permanent: Number.parseInt(key.replace(/^worker-/, ""), 10) <= permanent,
+		permanent: true,
 		pod: null,
 		node: null,
 		taskId: null,
@@ -150,12 +150,7 @@ export function unreadWorker(key: string, actorId: string, permanent: number): W
  * Calls one worker's `status`. Each call is an action through the engine's gateway, so the caller paces
  * them; a worker that doesn't answer keeps what was last read, marked unreachable.
  */
-export async function readWorker(
-	key: string,
-	actorId: string,
-	permanent: number,
-	before: WorkerRow,
-): Promise<WorkerRow> {
+export async function readWorker(key: string, actorId: string, before: WorkerRow): Promise<WorkerRow> {
 	const now = Date.now();
 	try {
 		const status = (await callStatus(rivet().get("worker", [key]))) as WorkerStatus;

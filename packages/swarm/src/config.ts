@@ -1,4 +1,5 @@
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
+import { NAMES } from "./names.js";
 
 const env = process.env;
 
@@ -54,13 +55,20 @@ export const config = {
 	executor: env.EXECUTOR_URL ? { url: env.EXECUTOR_URL, token: env.EXECUTOR_TOKEN } : undefined,
 };
 
-/** The board key a worker writes and claims as, such as worker-0042. Workers up to idleWorkers are permanent. */
+/**
+ * A worker's first name, its actor key and board profile: worker 1 is Ada. Past the last name the names
+ * repeat with a number, as in Ada-2. Workers up to idleWorkers are permanent.
+ */
 export function workerName(index: number): string {
-	return `worker-${String(index).padStart(4, "0")}`;
+	const round = Math.floor((index - 1) / NAMES.length);
+	const name = NAMES[(index - 1) % NAMES.length];
+	return round === 0 ? name : `${name}-${round + 1}`;
 }
 
 export function workerIndex(name: string): number {
-	return Number.parseInt(name.replace(/^worker-/, ""), 10);
+	const [first, round = "1"] = name.split("-");
+	const position = NAMES.indexOf(first);
+	return position < 0 ? Number.NaN : (Number(round) - 1) * NAMES.length + position + 1;
 }
 
 export function sleep(ms: number, signal: AbortSignal): Promise<void> {

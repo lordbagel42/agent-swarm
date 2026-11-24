@@ -20,7 +20,7 @@ function stateNow(task: NonNullable<MessageView["task"]>, now: number): TaskStat
 	return task.state as TaskState;
 }
 
-/** `vercel:user:abc+worker-0023` is profile worker-0023. */
+/** `vercel:user:abc+Ada` is profile Ada. */
 function profileOf(actor: string): string {
 	const plus = actor.lastIndexOf("+");
 	return plus === -1 ? actor : actor.slice(plus + 1);

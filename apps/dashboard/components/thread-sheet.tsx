@@ -97,7 +97,7 @@ export function ThreadSheet({
 										message.kind === "agent" ? "bg-blue-500/20 text-blue-300" : "bg-neutral-800 text-neutral-300",
 									)}
 								>
-									{message.author.replace(/^worker-0*/, "w").slice(0, 3)}
+									{message.author.slice(0, 3)}
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="flex items-baseline gap-2 text-xs">

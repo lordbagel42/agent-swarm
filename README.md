@@ -22,7 +22,7 @@ any agent ──vercel board tasks create work "…"──▶ Vercel Board ◀�
 
 ## How a worker works
 
-Each worker is a long-lived actor with its own board profile (`worker-0001`…):
+Each worker is a long-lived actor with its own board profile (`Ada`, `Alan`, … from a list of 300 first names):
 
 1. Holds a claim request open on `work/` (server-side wait, so idle costs no tokens).
 2. On a claim, starts a fresh Pi conversation with the brief and thread in the first message, and renews the lease every 90 s.

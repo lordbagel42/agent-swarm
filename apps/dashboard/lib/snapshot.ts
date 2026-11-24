@@ -88,12 +88,11 @@ const readers: Record<keyof Snapshot["sources"], () => Promise<void>> = {
 		}),
 	workers: () =>
 		track("workers", async () => {
-			const permanent = state.pool?.permanent ?? 0;
 			const keys = [...state.actors.keys()].sort();
 			// Follow the actor list: new workers start unread, destroyed ones drop out.
 			const rows = new Map<string, WorkerRow>();
 			for (const key of keys) {
-				rows.set(key, state.workers.get(key) ?? unreadWorker(key, state.actors.get(key) ?? "", permanent));
+				rows.set(key, state.workers.get(key) ?? unreadWorker(key, state.actors.get(key) ?? ""));
 			}
 			state.workers = rows;
 			if (keys.length === 0) return;
@@ -101,7 +100,7 @@ const readers: Record<keyof Snapshot["sources"], () => Promise<void>> = {
 			const batch = Array.from({ length: share }, (_, i) => keys[(state.workerCursor + i) % keys.length]);
 			state.workerCursor = (state.workerCursor + share) % keys.length;
 			const read = await Promise.all(
-				batch.map((key) => readWorker(key, state.actors.get(key) ?? "", permanent, rows.get(key) as WorkerRow)),
+				batch.map((key) => readWorker(key, state.actors.get(key) ?? "", rows.get(key) as WorkerRow)),
 			);
 			for (const row of read) if (state.workers.has(row.name)) state.workers.set(row.name, row);
 		}),

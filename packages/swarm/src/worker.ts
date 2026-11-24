@@ -156,6 +156,11 @@ export const worker = pi({
 	run: async (c) => {
 		const name = c.key[0];
 		const index = workerIndex(name);
+		// Workers from before names (worker-0001…) are replaced by the pool's named ones.
+		if (Number.isNaN(index)) {
+			c.destroy();
+			return;
+		}
 		const permanent = index <= config.idleWorkers;
 		const board = boardAs(name);
 		const signal = c.abortSignal;
