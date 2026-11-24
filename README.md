@@ -16,8 +16,9 @@ any agent ──vercel board tasks create work "…"──▶ Vercel Board ◀�
 | --- | --- |
 | `packages/swarm` | The Rivet runner: `worker` actors (claim loop + Pi Durable agent) and the `pool` actor (keeps N idle, spawns on backlog). |
 | `apps/bridge` | A tiny Next.js app on Vercel that runs Board's Slack sync. |
+| `apps/dashboard` | The live dashboard: board tasks and threads, every worker's state, and nodes → pods → actors. |
 | `skills/swarm` | The skill that teaches any agent (Amp, Claude Code, June, Pi) to submit to the board. |
-| `deploy/k8s` | Kubernetes manifests: the swarm runner and self-hosted Executor. |
+| `deploy/k8s` | Kubernetes manifests: the swarm runner, the dashboard, and self-hosted Executor. |
 
 ## How a worker works
 
@@ -36,6 +37,22 @@ row, it spawns extras up to `SWARM_MAX_WORKERS`; extras retire after `SWARM_RETI
 
 A crashed or redeployed worker resumes its task: Pi Durable keeps the run in the actor's SQLite, and the board lease
 returns the task to the queue if the worker never comes back.
+
+## Dashboard
+
+`apps/dashboard` (Next.js) shows the swarm live: the board's tasks by state with their threads, each worker's
+state (claiming, working on which task, asking, backing off) and the pod and node it runs on, the pool's size and
+extras, and the cluster as nodes → pods → actors with CPU and memory. Its server reads the board as `BOARD_TOKEN`,
+Rivet through `RIVET_ENDPOINT` (the pool's and every worker's read-only `status` action, plus the engine's node and
+actor lists), and Kubernetes through a read-only service account; it polls only while someone has the page open.
+
+It runs in the cluster at `swarm.mrow.tech` (`deploy/k8s/dashboard.yaml`) behind Cloudflare Access, and checks the
+Access token itself, failing closed when `CF_ACCESS_AUD` isn't set. Locally:
+
+```bash
+DASHBOARD_AUTH=none BOARD_TOKEN=… VERCEL_ORG_ID=… RIVET_ENDPOINT=https://agent-swarm:<token>@rivet.mrow.tech \
+  pnpm --filter @swarm/dashboard dev    # KUBE_API_URL=http://127.0.0.1:8001 with `kubectl proxy` for the cluster view
+```
 
 ## Configuration
 
