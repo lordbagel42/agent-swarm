@@ -57,8 +57,11 @@ globalState.swarmDashboard ??= {
 };
 const state: State = globalState.swarmDashboard;
 
+/** The error and its cause: undici says only "fetch failed", and the cause says why (refused, reset, DNS). */
 function message(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+	if (!(error instanceof Error)) return String(error);
+	const cause = error.cause as { code?: string; message?: string } | undefined;
+	return cause ? `${error.message}: ${cause.code ?? cause.message}` : error.message;
 }
 
 async function track(source: keyof Snapshot["sources"], read: () => Promise<void>) {
@@ -150,7 +153,7 @@ function withClaim(worker: WorkerRow, task: TaskRow | undefined): WorkerRow {
 	}
 	if (!worker.taskId) return worker;
 	// Its status says it holds a task the board no longer shows it holding: it has settled since.
-	return { ...worker, phase: "claiming", taskId: null, claimedAt: null, asked: null };
+	return { ...worker, phase: worker.seenAt ? "claiming" : "unread", taskId: null, claimedAt: null, asked: null };
 }
 
 /** The latest of everything. A request while the collectors are stopped waits for their first reads. */

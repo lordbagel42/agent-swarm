@@ -164,7 +164,9 @@ export function ClusterView({
 						{orphans.map(([pod, group]) => (
 							<div key={pod || "unknown"}>
 								<div className="mb-2 flex text-xs">
-									<span className="font-mono">{pod || "pod not reported (older build, or unreachable)"}</span>
+									<span className="font-mono">
+										{pod || "pod not reported (not read yet, older build, or unreachable)"}
+									</span>
 									<span className="ml-auto text-muted-foreground tabular-nums">{group.length} actors</span>
 								</div>
 								<WorkerGrid workers={group} now={now} onTask={onTask} size="sm" />

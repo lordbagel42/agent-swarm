@@ -123,12 +123,12 @@ function phaseOf(status: WorkerStatus, now: number): WorkerPhase {
 	return "claiming";
 }
 
-/** A worker nobody has read yet: idle until its first status arrives, or the board says it holds a task. */
+/** A worker nobody has read yet, until its first status arrives or the board says it holds a task. */
 export function unreadWorker(key: string, actorId: string): WorkerRow {
 	return {
 		name: key,
 		actorId,
-		phase: "claiming",
+		phase: "unread",
 		permanent: true,
 		pod: null,
 		node: null,

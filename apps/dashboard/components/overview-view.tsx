@@ -66,7 +66,12 @@ export function OverviewView({
 					dot={PHASE_COLORS.working}
 					hint={`${phases.asking} asking`}
 				/>
-				<Stat label="Idle · claiming" value={phases.claiming} dot={PHASE_COLORS.claiming} />
+				<Stat
+					label="Idle · claiming"
+					value={phases.claiming}
+					dot={PHASE_COLORS.claiming}
+					hint={phases.unread ? `${phases.unread} not read yet` : undefined}
+				/>
 				<Stat
 					label="Unhealthy"
 					value={phases.backoff + phases.unreachable}
@@ -107,7 +112,7 @@ export function OverviewView({
 								<div className="mb-2 flex items-baseline gap-2 text-xs">
 									<span className="font-mono text-foreground/90">{pod || "pod not reported"}</span>
 									<span className="text-muted-foreground">
-										{group[0]?.node ?? (pod ? "" : "older build or unreachable")}
+										{group[0]?.node ?? (pod ? "" : "not read yet, older build, or unreachable")}
 									</span>
 									<span className="ml-auto text-muted-foreground tabular-nums">
 										{group.filter((worker) => worker.taskId).length} busy / {group.length}

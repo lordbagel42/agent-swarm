@@ -27,7 +27,8 @@ export type TaskRow = {
 };
 
 /** What a worker is doing now, derived from its status action. */
-export type WorkerPhase = "working" | "asking" | "claiming" | "backoff" | "unreachable";
+/** `unread` is a worker whose status hasn't been read yet: reads are staggered over a minute. */
+export type WorkerPhase = "working" | "asking" | "claiming" | "backoff" | "unreachable" | "unread";
 
 export type Outcome = {
 	taskId: string;

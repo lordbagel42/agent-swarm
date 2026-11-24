@@ -18,6 +18,7 @@ export const PHASE_COLORS: Record<WorkerPhase, string> = {
 	claiming: "bg-neutral-700",
 	backoff: "bg-orange-500",
 	unreachable: "bg-red-500",
+	unread: "bg-neutral-900 outline outline-1 -outline-offset-1 outline-dashed outline-neutral-600",
 };
 
 export const PHASE_LABELS: Record<WorkerPhase, string> = {
@@ -26,6 +27,7 @@ export const PHASE_LABELS: Record<WorkerPhase, string> = {
 	claiming: "Idle · claiming",
 	backoff: "Backing off",
 	unreachable: "Unreachable",
+	unread: "Not read yet",
 };
 
 export function Dot({ className }: { className?: string }) {
