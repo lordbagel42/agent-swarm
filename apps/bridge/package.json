@@ -1,0 +1,24 @@
+{
+	"name": "@swarm/bridge",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@chat-adapter/slack": "^4.45.0",
+		"@vercel/board": "^0.56.1",
+		"@vercel/connect": "^2.3.4",
+		"chat": "^4.41.1",
+		"next": "^16.0.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"@types/react": "^19.2.0",
+		"typescript": "^5.9.0"
+	}
+}
