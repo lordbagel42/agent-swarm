@@ -123,73 +123,62 @@ function phaseOf(status: WorkerStatus, now: number): WorkerPhase {
 	return "claiming";
 }
 
-const CONCURRENCY = 50;
+/** A worker nobody has read yet: idle until its first status arrives, or the board says it holds a task. */
+export function unreadWorker(key: string, actorId: string, permanent: number): WorkerRow {
+	return {
+		name: key,
+		actorId,
+		phase: "claiming",
+		permanent: Number.parseInt(key.replace(/^worker-/, ""), 10) <= permanent,
+		pod: null,
+		node: null,
+		taskId: null,
+		claimedAt: null,
+		asked: null,
+		idleSince: null,
+		completed: 0,
+		failed: 0,
+		blocked: 0,
+		tokens: 0,
+		last: null,
+		error: null,
+		seenAt: null,
+	};
+}
 
 /**
- * Calls `status` on every worker, a few dozen at a time. Each is one small action through the engine's
- * gateway; a worker that doesn't answer keeps its last known status, marked unreachable.
+ * Calls one worker's `status`. Each call is an action through the engine's gateway, so the caller paces
+ * them; a worker that doesn't answer keeps what was last read, marked unreachable.
  */
-export async function readWorkers(
-	actors: Map<string, string>,
+export async function readWorker(
+	key: string,
+	actorId: string,
 	permanent: number,
-	previous: Map<string, WorkerRow>,
-): Promise<WorkerRow[]> {
+	before: WorkerRow,
+): Promise<WorkerRow> {
 	const now = Date.now();
-	const keys = [...actors.keys()].sort();
-	const rows: WorkerRow[] = new Array(keys.length);
-	let next = 0;
-	const run = async () => {
-		while (next < keys.length) {
-			const i = next++;
-			const key = keys[i];
-			const actorId = actors.get(key) ?? "";
-			try {
-				const status = (await callStatus(rivet().get("worker", [key]))) as WorkerStatus;
-				rows[i] = {
-					name: key,
-					actorId,
-					phase: phaseOf(status, now),
-					permanent: status.permanent ?? Number.parseInt(key.replace(/^worker-/, ""), 10) <= permanent,
-					pod: status.pod ?? null,
-					node: null,
-					taskId: status.taskId,
-					claimedAt: status.claimedAt ?? null,
-					asked: status.asked ?? null,
-					idleSince: status.idleSince,
-					completed: status.completed,
-					failed: status.failed ?? 0,
-					blocked: status.blocked ?? 0,
-					tokens: status.tokens,
-					last: status.last ?? null,
-					error: status.error ?? null,
-					seenAt: now,
-				};
-			} catch {
-				const before = previous.get(key);
-				rows[i] = before
-					? { ...before, phase: "unreachable" }
-					: {
-							name: key,
-							actorId,
-							phase: "unreachable",
-							permanent: Number.parseInt(key.replace(/^worker-/, ""), 10) <= permanent,
-							pod: null,
-							node: null,
-							taskId: null,
-							claimedAt: null,
-							asked: null,
-							idleSince: null,
-							completed: 0,
-							failed: 0,
-							blocked: 0,
-							tokens: 0,
-							last: null,
-							error: null,
-							seenAt: null,
-						};
-			}
-		}
-	};
-	await Promise.all(Array.from({ length: CONCURRENCY }, run));
-	return rows;
+	try {
+		const status = (await callStatus(rivet().get("worker", [key]))) as WorkerStatus;
+		return {
+			name: key,
+			actorId,
+			phase: phaseOf(status, now),
+			permanent: status.permanent ?? before.permanent,
+			pod: status.pod ?? null,
+			node: null,
+			taskId: status.taskId,
+			claimedAt: status.claimedAt ?? null,
+			asked: status.asked ?? null,
+			idleSince: status.idleSince,
+			completed: status.completed,
+			failed: status.failed ?? 0,
+			blocked: status.blocked ?? 0,
+			tokens: status.tokens,
+			last: status.last ?? null,
+			error: status.error ?? null,
+			seenAt: now,
+		};
+	} catch {
+		return { ...before, actorId, phase: "unreachable" };
+	}
 }

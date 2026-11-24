@@ -1,6 +1,6 @@
 import { readTasks } from "./board";
 import { kubeConfigured, readCluster } from "./kube";
-import { listNodes, listWorkerActors, poolStatus, readWorkers } from "./rivet";
+import { listNodes, listWorkerActors, poolStatus, readWorker, unreadWorker } from "./rivet";
 import {
 	type NodeRow,
 	type PodRow,
@@ -14,8 +14,13 @@ import {
 	type WorkerRow,
 } from "./types";
 
-/** How often each source is read while someone has the page open. */
-const INTERVALS = { board: 4_000, rivet: 5_000, workers: 10_000, kube: 10_000 };
+/**
+ * How often each source is read while someone has the page open. Rivet is one engine on a Pi, so its reads are
+ * slow and spread out: the worker loop ticks every second and reads only that second's share of the workers.
+ */
+const INTERVALS = { board: 4_000, rivet: 15_000, workers: 1_000, kube: 15_000 };
+/** Each worker's `status` is read once per this long (staggered), so the engine sees workers / 60 actions a second. */
+const WORKER_REFRESH_MS = Number(process.env.WORKER_STATUS_INTERVAL_S ?? 60) * 1000;
 /** Polling stops this long after the last page request, so an unwatched dashboard costs nothing. */
 const IDLE_AFTER_MS = 120_000;
 const NAMESPACES = (process.env.KUBE_NAMESPACES ?? "agent-swarm,rivet").split(",").map((part) => part.trim());
@@ -28,6 +33,8 @@ type State = {
 	rivetNodes: RivetNode[];
 	workers: Map<string, WorkerRow>;
 	cluster: { nodes: NodeRow[]; unscheduled: PodRow[] };
+	/** Where the staggered worker reads resume, in key order. */
+	workerCursor: number;
 	lastRequest: number;
 	running: boolean;
 };
@@ -44,6 +51,7 @@ globalState.swarmDashboard ??= {
 	rivetNodes: [],
 	workers: new Map(),
 	cluster: { nodes: [], unscheduled: [] },
+	workerCursor: 0,
 	lastRequest: 0,
 	running: false,
 };
@@ -80,9 +88,22 @@ const readers: Record<keyof Snapshot["sources"], () => Promise<void>> = {
 		}),
 	workers: () =>
 		track("workers", async () => {
-			if (state.actors.size === 0) state.actors = await listWorkerActors();
-			const rows = await readWorkers(state.actors, state.pool?.permanent ?? 0, state.workers);
-			state.workers = new Map(rows.map((row) => [row.name, row]));
+			const permanent = state.pool?.permanent ?? 0;
+			const keys = [...state.actors.keys()].sort();
+			// Follow the actor list: new workers start unread, destroyed ones drop out.
+			const rows = new Map<string, WorkerRow>();
+			for (const key of keys) {
+				rows.set(key, state.workers.get(key) ?? unreadWorker(key, state.actors.get(key) ?? "", permanent));
+			}
+			state.workers = rows;
+			if (keys.length === 0) return;
+			const share = Math.min(keys.length, Math.ceil((keys.length * INTERVALS.workers) / WORKER_REFRESH_MS));
+			const batch = Array.from({ length: share }, (_, i) => keys[(state.workerCursor + i) % keys.length]);
+			state.workerCursor = (state.workerCursor + share) % keys.length;
+			const read = await Promise.all(
+				batch.map((key) => readWorker(key, state.actors.get(key) ?? "", permanent, rows.get(key) as WorkerRow)),
+			);
+			for (const row of read) if (state.workers.has(row.name)) state.workers.set(row.name, row);
 		}),
 	kube: async () => {
 		if (!kubeConfigured()) {
@@ -106,7 +127,7 @@ function start(): Promise<void> {
 	state.running = true;
 	warming = (async () => {
 		await Promise.all([readers.board(), readers.rivet(), readers.kube()]);
-		// After the first Rivet read, which lists the workers it calls.
+		// After the first Rivet read, which lists the workers. This reads one tick's share, not all of them.
 		await readers.workers();
 		const loop = async (source: keyof typeof readers) => {
 			while (Date.now() - state.lastRequest < IDLE_AFTER_MS) {
@@ -121,6 +142,18 @@ function start(): Promise<void> {
 	return warming;
 }
 
+/** A worker as the board's claims show it now, over its last status. */
+function withClaim(worker: WorkerRow, task: TaskRow | undefined): WorkerRow {
+	if (worker.phase === "unreachable") return worker;
+	if (task) {
+		if (worker.taskId === task.id) return worker;
+		return { ...worker, phase: "working", taskId: task.id, claimedAt: null, asked: null, idleSince: null };
+	}
+	if (!worker.taskId) return worker;
+	// Its status says it holds a task the board no longer shows it holding: it has settled since.
+	return { ...worker, phase: "claiming", taskId: null, claimedAt: null, asked: null };
+}
+
 /** The latest of everything. A request while the collectors are stopped waits for their first reads. */
 export async function snapshot(): Promise<Snapshot> {
 	state.lastRequest = Date.now();
@@ -128,7 +161,11 @@ export async function snapshot(): Promise<Snapshot> {
 
 	const podNode = new Map<string, string>();
 	for (const node of state.cluster.nodes) for (const pod of node.pods) podNode.set(pod.name, node.name);
+	// Statuses are up to a minute old; the board's claims are seconds old, so they decide who holds what.
+	const claims = new Map<string, TaskRow>();
+	for (const task of state.tasks) if (task.claim) claims.set(task.claim.worker, task);
 	const workers = [...state.workers.values()]
+		.map((worker) => withClaim(worker, claims.get(worker.name)))
 		.map((worker) => ({ ...worker, node: worker.pod ? (podNode.get(worker.pod) ?? null) : null }))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
