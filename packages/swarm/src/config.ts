@@ -40,16 +40,16 @@ export const config = {
 	/** Largest tool result, in characters, passed back to the model. */
 	maxToolResultChars: int("SWARM_MAX_TOOL_RESULT_CHARS", 8_000),
 	/**
-	 * Model calls go through Cloudflare AI Gateway to its custom provider (default `claude`), which holds the upstream
+	 * Model calls go through Cloudflare AI Gateway to its custom provider, which holds the upstream
 	 * key. Workers only hold an AI Gateway token (AI Gateway Run), sent as cf-aig-authorization.
 	 */
 	gateway: {
+		/** The gateway's custom provider, on the gateway's custom domain. */
+		url: env.CLOUDFLARE_GATEWAY_URL ?? "https://ai.bagelindustries.com/custom-claude",
+		/** Pi's gateway auth requires these even though the URL above already names the gateway. */
 		accountId: env.CLOUDFLARE_ACCOUNT_ID ?? "",
 		gatewayId: env.CLOUDFLARE_GATEWAY_ID ?? "default",
-		provider: env.CLOUDFLARE_GATEWAY_PROVIDER ?? "claude",
 		token: env.CLOUDFLARE_AI_GATEWAY_TOKEN ?? "",
-		/** Overrides the gateway URL, for tests. */
-		baseUrl: env.SWARM_MODEL_BASE_URL,
 	},
 	executor: env.EXECUTOR_URL ? { url: env.EXECUTOR_URL, token: env.EXECUTOR_TOKEN } : undefined,
 };

@@ -17,7 +17,7 @@ data:
   # Model calls go through this Cloudflare AI Gateway.
   CLOUDFLARE_ACCOUNT_ID: 2fa4104b17af8808577f12883fa657b1
   CLOUDFLARE_GATEWAY_ID: default
-  CLOUDFLARE_GATEWAY_PROVIDER: claude
+  CLOUDFLARE_GATEWAY_URL: https://ai.bagelindustries.com/custom-claude
   # agentos needs Rivet Services running next to the control plane; "none" gives workers file tools only.
   SWARM_SANDBOX: agentos
 ---

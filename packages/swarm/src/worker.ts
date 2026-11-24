@@ -35,8 +35,8 @@ const GATEWAY = "cloudflare-ai-gateway";
 
 /** Points Pi's Cloudflare provider at the gateway's custom provider instead of its built-in Anthropic route. */
 function gatewayProvider() {
-	const { accountId, gatewayId, provider, baseUrl } = config.gateway;
-	if (!baseUrl && !accountId) throw new Error("CLOUDFLARE_ACCOUNT_ID is not set");
+	const { accountId, gatewayId, url } = config.gateway;
+	if (!accountId) throw new Error("CLOUDFLARE_ACCOUNT_ID is not set");
 	if (!config.gateway.token) throw new Error("CLOUDFLARE_AI_GATEWAY_TOKEN is not set");
 	process.env.CLOUDFLARE_ACCOUNT_ID = accountId;
 	process.env.CLOUDFLARE_GATEWAY_ID = gatewayId;
@@ -46,7 +46,7 @@ function gatewayProvider() {
 				id: config.model,
 				name: config.model,
 				api: "anthropic-messages" as const,
-				baseUrl: baseUrl ?? `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/custom-${provider}`,
+				baseUrl: url,
 				reasoning: true,
 				input: ["text", "image"] as ("text" | "image")[],
 				compat: { forceAdaptiveThinking: true, supportsTemperature: false },

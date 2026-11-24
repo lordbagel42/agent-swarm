@@ -44,7 +44,8 @@ returns the task to the queue if the worker never comes back.
 | `RIVET_ENDPOINT` | local engine | Control plane URL (with namespace/token) from the Rivet setup |
 | `CLOUDFLARE_ACCOUNT_ID` | | Cloudflare account that owns the gateway |
 | `CLOUDFLARE_AI_GATEWAY_TOKEN` | | Cloudflare API token with AI Gateway Run, sent as `cf-aig-authorization` |
-| `CLOUDFLARE_GATEWAY_ID` / `CLOUDFLARE_GATEWAY_PROVIDER` | `default` / `claude` | Gateway and custom provider |
+| `CLOUDFLARE_GATEWAY_URL` | `https://ai.bagelindustries.com/custom-claude` | The gateway's custom provider |
+| `CLOUDFLARE_GATEWAY_ID` | `default` | |
 | `BOARD_TOKEN`, `VERCEL_ORG_ID` | | Vercel token and team for the board (or `BOARD_URL` for a local board) |
 | `BOARD_NAME` | team default | A named board |
 | `SWARM_CHANNEL` | `work` | |
