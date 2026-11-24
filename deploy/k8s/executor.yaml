@@ -1,0 +1,55 @@
+# Self-hosted Executor (executor.sh): one container with its own database. Workers reach it at
+# http://executor.agent-swarm.svc:4788/mcp (set EXECUTOR_URL). Open it once in a browser to create the
+# owner account, connect integrations, and mint the token workers use (EXECUTOR_TOKEN).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: executor-data
+  namespace: agent-swarm
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executor
+  namespace: agent-swarm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: executor
+  template:
+    metadata:
+      labels:
+        app: executor
+    spec:
+      containers:
+        - name: executor
+          image: ghcr.io/rhyssullivan/executor-selfhost:latest
+          ports:
+            - containerPort: 4788
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: executor-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: executor
+  namespace: agent-swarm
+spec:
+  selector:
+    app: executor
+  ports:
+    - port: 4788
+      targetPort: 4788

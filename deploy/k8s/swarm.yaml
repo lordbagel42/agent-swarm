@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-swarm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swarm-config
+  namespace: agent-swarm
+data:
+  SWARM_CHANNEL: work
+  SWARM_IDLE_WORKERS: "300"
+  SWARM_MAX_WORKERS: "600"
+  SWARM_MODEL: claude-opus-5-5
+  SWARM_THINKING: medium
+  # Model calls go through this Cloudflare AI Gateway.
+  CLOUDFLARE_ACCOUNT_ID: 2fa4104b17af8808577f12883fa657b1
+  CLOUDFLARE_GATEWAY_ID: default
+  CLOUDFLARE_GATEWAY_PROVIDER: claude
+  # agentos needs Rivet Services running next to the control plane; "none" gives workers file tools only.
+  SWARM_SANDBOX: agentos
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swarm
+  namespace: agent-swarm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: swarm
+  template:
+    metadata:
+      labels:
+        app: swarm
+    spec:
+      # Actors drain for up to 30 minutes on shutdown; the default 30 s cuts them off mid-task.
+      terminationGracePeriodSeconds: 2100
+      containers:
+        - name: swarm
+          image: ghcr.io/lordbagel42/agent-swarm:latest
+          envFrom:
+            - configMapRef:
+                name: swarm-config
+            - secretRef:
+                name: swarm-secrets
+          resources:
+            # ~3 MB per idle worker measured locally (100 workers ≈ 290 MB); working agents use more.
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 3Gi
