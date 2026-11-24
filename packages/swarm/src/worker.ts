@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { type Conversation, createRegistry, defineExtension, type Harness, UsageDoc } from "@earendil-works/pi-durable";
@@ -28,6 +29,24 @@ type Current = {
 	conversationId?: number;
 	/** Set by the board tool's `ask`: the task is blocked with this instead of completed. */
 	asked?: string;
+	/** When the claim landed. */
+	claimedAt?: number;
+};
+
+/** How the worker's last task ended. `lost` is a claim that ran out or was taken back. */
+type Outcome = { taskId: string; outcome: "completed" | "blocked" | "failed" | "lost"; at: number; tokens: number };
+
+type WorkerState = {
+	current: Current | null;
+	idleSince: number;
+	completed: number;
+	tokens: number;
+	// Added after the first deploy, so workers created before it lack them until they're set.
+	failed?: number;
+	blocked?: number;
+	last?: Outcome | null;
+	/** The last claim error, cleared by the next claim request that succeeds. */
+	error?: { message: string; at: number } | null;
 };
 
 /** Pi's Cloudflare AI Gateway provider: sends cf-aig-authorization and no upstream key, so the gateway's stored key is used. */
@@ -111,18 +130,27 @@ export const worker = pi({
 	registry,
 	sandbox: provider,
 	tools,
-	createState: () => ({ current: null as Current | null, idleSince: Date.now(), completed: 0, tokens: 0 }),
+	createState: (): WorkerState => ({ current: null, idleSince: Date.now(), completed: 0, tokens: 0 }),
 	// Idle workers hold a claim request open on the board, so they never sleep.
 	options: { noSleep: true },
 	actions: {
 		/** Wakes the worker. The pool calls it so every worker is running. */
 		start: () => true,
+		/** Read-only: what the worker is doing, for the dashboard. */
 		status: (c) => ({
 			name: c.key[0],
+			pod: hostname(),
+			permanent: workerIndex(c.key[0]) <= config.idleWorkers,
 			taskId: c.state.current?.taskId ?? null,
+			claimedAt: c.state.current?.claimedAt ?? null,
+			asked: c.state.current?.asked ?? null,
 			idleSince: c.state.current ? null : c.state.idleSince,
 			completed: c.state.completed,
+			failed: c.state.failed ?? 0,
+			blocked: c.state.blocked ?? 0,
 			tokens: c.state.tokens,
+			last: c.state.last ?? null,
+			error: c.state.error ?? null,
 		}),
 	},
 	run: async (c) => {
@@ -133,10 +161,17 @@ export const worker = pi({
 		const signal = c.abortSignal;
 		const harness = (c as unknown as PiAccess).pi;
 
+		const settle = (current: Current, outcome: Outcome["outcome"], tokens: number) => {
+			c.state.last = { taskId: current.taskId, outcome, at: Date.now(), tokens };
+			if (outcome === "failed") c.state.failed = (c.state.failed ?? 0) + 1;
+			if (outcome === "blocked") c.state.blocked = (c.state.blocked ?? 0) + 1;
+		};
+
 		const work = async (current: Current) => {
 			const held: HeldTask = board.tasks.held(current.taskId, { epoch: current.epoch, token: current.token });
 			let lost = false;
 			let conversation: Conversation | undefined;
+			let tokens = 0;
 			const renew = setInterval(() => {
 				held.renew().catch((error) => {
 					if (!isClaimLost(error)) return console.warn(`[${name}] renew failed`, error);
@@ -172,26 +207,34 @@ export const worker = pi({
 				const settled = await untilAborted(submission.wait(ctx), signal);
 				// Shutting down: keep `current`, so the next generation renews and resumes this run.
 				if (settled === undefined) return;
-				const tokens = await tokensUsed(harness, conversation);
+				tokens = await tokensUsed(harness, conversation);
 				c.state.tokens += tokens;
-				if (lost) return;
+				if (lost) {
+					settle(current, "lost", tokens);
+					return;
+				}
 				if (current.asked) {
 					await held.block(current.asked, { kind: "needs_input" });
+					settle(current, "blocked", tokens);
 				} else if (settled.status === "done") {
 					const answer = await answerText(conversation, settled.answer);
 					// A reply syncs to Slack; the task result alone doesn't.
 					await board.reply(current.taskId, answer.trim() || "Done.");
 					await held.complete(`${answer.trim() || "Done."}\n\n_${name} · ${tokens.toLocaleString()} tokens_`);
 					c.state.completed += 1;
+					settle(current, "completed", tokens);
 				} else {
 					await held.fail(`${settled.reason ?? "unanswered"} (${name}, ${tokens} tokens)`);
+					settle(current, "failed", tokens);
 				}
 			} catch (error) {
 				if (isClaimLost(error)) {
 					await conversation?.abort(ctx).catch(() => {});
+					settle(current, "lost", tokens);
 				} else {
 					console.error(`[${name}] task ${current.taskId} failed`, error);
 					await held.fail(error instanceof Error ? error.message : String(error)).catch(() => {});
+					settle(current, "failed", tokens);
 				}
 			} finally {
 				clearInterval(renew);
@@ -225,15 +268,18 @@ export const worker = pi({
 					},
 					{ signal },
 				);
+				if (c.state.error) c.state.error = null;
 				if (!claim) continue;
 				c.state.current = {
 					taskId: claim.task.id,
 					epoch: claim.epoch,
 					token: claim.token,
 					requestId: `${claim.task.id}#${claim.epoch}`,
+					claimedAt: Date.now(),
 				};
 			} catch (error) {
 				if (signal.aborted) return;
+				c.state.error = { message: error instanceof Error ? error.message : String(error), at: Date.now() };
 				const wait = error instanceof BoardError && error.retryAfter ? error.retryAfter * 1000 : 5_000;
 				console.warn(`[${name}] claim failed, retrying in ${wait} ms`, error instanceof Error ? error.message : error);
 				await sleep(wait + Math.random() * 2_000, signal);

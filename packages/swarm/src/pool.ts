@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import { actor, type Registry } from "rivetkit";
 import { boardAsSelf } from "./board.js";
 import { config, sleep, workerName } from "./config.js";
@@ -19,11 +20,15 @@ export const pool = actor({
 		retired: (c, index: number) => {
 			c.state.extras = c.state.extras.filter((extra) => extra !== index);
 		},
+		/** Read-only: the pool's size, for the dashboard. */
 		status: (c) => ({
 			permanent: config.idleWorkers,
 			extras: c.state.extras.length,
+			extraIndexes: c.state.extras,
 			max: config.maxWorkers,
 			ready: c.state.lastReady,
+			backlogSeen: c.state.backlogSeen,
+			pod: hostname(),
 		}),
 	},
 	run: async (c) => {
