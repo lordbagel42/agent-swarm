@@ -9,6 +9,7 @@ import { agentOSProvider } from "@rivet-dev/sandbox-adapter/agentos";
 import { dockerProvider } from "@rivet-dev/sandbox-adapter/docker";
 import { BoardError, type HeldTask } from "@vercel/board";
 import type { Registry } from "rivetkit";
+import { readActivity } from "./activity.js";
 import { boardAs } from "./board.js";
 import { config, sleep, workerIndex } from "./config.js";
 import type { pool } from "./pool.js";
@@ -34,7 +35,17 @@ type Current = {
 };
 
 /** How the worker's last task ended. `lost` is a claim that ran out or was taken back. */
-type Outcome = { taskId: string; outcome: "completed" | "blocked" | "failed" | "lost"; at: number; tokens: number };
+type Outcome = {
+	taskId: string;
+	outcome: "completed" | "blocked" | "failed" | "lost";
+	at: number;
+	tokens: number;
+	/** The task's Pi conversation, which `activity` reads. */
+	conversationId?: number;
+};
+
+/** Outcomes kept for the dashboard. */
+const HISTORY = 20;
 
 type WorkerState = {
 	current: Current | null;
@@ -45,6 +56,8 @@ type WorkerState = {
 	failed?: number;
 	blocked?: number;
 	last?: Outcome | null;
+	/** The latest outcomes, oldest first, at most HISTORY. */
+	history?: Outcome[];
 	/** The last claim error, cleared by the next claim request that succeeds. */
 	error?: { message: string; at: number } | null;
 };
@@ -152,6 +165,26 @@ export const worker = pi({
 			last: c.state.last ?? null,
 			error: c.state.error ?? null,
 		}),
+		/**
+		 * Read-only: the outcome history, and one task's conversation from Pi, capped: the current task's, or `taskId`'s
+		 * when it's in the history, or the latest. The dashboard calls it only for the worker someone is viewing.
+		 */
+		activity: async (c, taskId?: string) => {
+			const current = c.state.current;
+			const history = c.state.history ?? (c.state.last ? [c.state.last] : []);
+			const target =
+				taskId && taskId !== current?.taskId
+					? history.findLast((outcome) => outcome.taskId === taskId)
+					: (current ?? history.at(-1));
+			const conversationId = target?.conversationId;
+			return {
+				name: c.key[0],
+				taskId: target?.taskId ?? null,
+				live: Boolean(current && target === current),
+				conversation: conversationId ? await readActivity(c.pi, conversationId) : null,
+				history: [...history].reverse(),
+			};
+		},
 	},
 	run: async (c) => {
 		const name = c.key[0];
@@ -167,7 +200,14 @@ export const worker = pi({
 		const harness = (c as unknown as PiAccess).pi;
 
 		const settle = (current: Current, outcome: Outcome["outcome"], tokens: number) => {
-			c.state.last = { taskId: current.taskId, outcome, at: Date.now(), tokens };
+			c.state.last = {
+				taskId: current.taskId,
+				outcome,
+				at: Date.now(),
+				tokens,
+				conversationId: current.conversationId,
+			};
+			c.state.history = [...(c.state.history ?? []), c.state.last].slice(-HISTORY);
 			if (outcome === "failed") c.state.failed = (c.state.failed ?? 0) + 1;
 			if (outcome === "blocked") c.state.blocked = (c.state.blocked ?? 0) + 1;
 		};
