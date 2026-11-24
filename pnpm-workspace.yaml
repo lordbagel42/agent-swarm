@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+  - apps/*
+allowBuilds:
+  '@google/genai': true
+  cbor-extract: true
+  protobufjs: true
+  esbuild: true
+  sharp: true
+  '@biomejs/biome': true
+minimumReleaseAgeExclude:
+  - '@vercel/board@0.56.1'

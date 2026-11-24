@@ -1,0 +1,6 @@
+node_modules
+.board
+.vercel
+.env*
+!.env.example
+*.tsbuildinfo

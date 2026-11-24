@@ -1,0 +1,27 @@
+{
+	"name": "@swarm/worker",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx src/server.ts",
+		"start": "node --import tsx src/server.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/chord": "~1.5.0",
+		"@earendil-works/pi-ai": "~1.5.0",
+		"@earendil-works/pi-durable": "~1.5.0",
+		"@earendil-works/pi-schema": "~1.5.0",
+		"@earendil-works/pi-telemetry": "~1.5.0",
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"@rivet-dev/pi": "0.5.7",
+		"@rivet-dev/sandbox-adapter": "0.5.7",
+		"@vercel/board": "^0.56.1",
+		"rivetkit": "^3.1.1",
+		"tsx": "^4.20.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0"
+	}
+}
